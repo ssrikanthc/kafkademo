@@ -1,0 +1,28 @@
+ryuk.container.image = 172.23.160.1:9001/docker-hosted/ryuk
+#Fetching ryuk cleanup container image from Local Nexus Repo
+
+socat.container.image = 172.23.160.1:9001/docker-hosted/socat
+#Fetching ambassador/proxy container image form Local Nexus Repo
+
+## Optional ##
+
+tinyimage.container.image = alpine:3.14
+#Used to check whether images can be pulled at startup, and always required (unless startup checks are disabled)
+
+sshd.container.image = testcontainers/sshd:1.0.0
+#Required if exposing host ports to containers
+
+vncrecorder.container.image = testcontainers/vnc-recorder:1.1.0
+#Used by VNC recorder in Testcontainers' Selenium integration
+
+compose.container.image = docker/compose:1.8.0
+#Required if using Docker Compose
+
+kafka.container.image = confluentinc/cp-kafka
+#Used by KafkaContainer
+
+localstack.container.image = localstack/localstack
+#Used by LocalStack
+
+pulsar.container.image = apachepulsar/pulsar:2.2.0
+#Used by Apache Pulsar
