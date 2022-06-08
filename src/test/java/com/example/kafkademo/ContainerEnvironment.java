@@ -38,10 +38,10 @@ public class ContainerEnvironment {
 		return containerEnvironment;
 	}
 
-	public CompletableFuture<String> build(String composeFilePath, int timeOutInSeconds) throws Exception {
+	public CompletableFuture<List<String>> build(String composeFilePath, int timeOutInSeconds) throws Exception {
 
 		Executor executor = Executors.newFixedThreadPool(2);
-		CompletableFuture<String> createContainersFuture = CompletableFuture.supplyAsync(() -> {
+		CompletableFuture<List<String>> createContainersFuture = CompletableFuture.supplyAsync(() -> {
 
 			List<String> commands = new ArrayList<>();
 			commands.add("docker-compose");
@@ -55,54 +55,57 @@ public class ContainerEnvironment {
 			builder.redirectErrorStream(true);
 			builder.redirectError(ProcessBuilder.Redirect.INHERIT);
 
-			String result = "";
+			List<String> result = new ArrayList<>();
 
 			Process dockerComposeCommand;
 
 			try {
 
 				dockerComposeCommand = builder.start();
-				System.out.println("B4 wait..");
 				dockerComposeCommand.waitFor(timeOutInSeconds / 60, TimeUnit.SECONDS);
-				Thread.sleep(timeOutInSeconds*1000);
-				System.out.println("Aftr wait..");
 				try (BufferedReader reader = new BufferedReader(
 						new InputStreamReader(dockerComposeCommand.getInputStream()))) {
 
+					String line = "";
 					do {
-
-						int c = reader.read();
-						if (c > -1)
-							result = result + (char) c;
-						else
-							break;
-					} while (reader.ready());
-					result = result + "DockerComposeUpCompleted";
-					System.out.println("after result:" + result);
+						
+						line = reader.readLine();
+						result.add(line);
+					}while(reader.readLine() != null);
 				}
 			} catch (IOException | InterruptedException e) {
 				LOGGER.error("ProcessBuilder Error:", e.getMessage());
 			}
 			return result;
-		}, executor).thenApplyAsync(result -> {
-			try {
-				CompletableFuture<String> destroyContainersFuture = destroy(composeFilePath, timeOutInSeconds);
-				LOGGER.info("destroyContainers status: " + destroyContainersFuture.toString());
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-			return result;
-		});
+		}, executor);
 
+		try {
+			Thread.sleep(timeOutInSeconds*1000);
+			CompletableFuture<List<String>> destroyContainersFuture = destroy(createContainersFuture, composeFilePath, 0);
+			LOGGER.info("destroyContainers status: " + destroyContainersFuture.toString());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
 		return createContainersFuture;
 	}
 
-	public CompletableFuture<String> destroy(String composeFilePath, int timeOutInSeconds) throws Exception {
+	private CompletableFuture<List<String>> destroy(CompletableFuture<List<String>> createContainersFuture, String composeFilePath,
+			int timeOutInSeconds) throws Exception {
+
+		if(!createContainersFuture.isDone()) {
+			createContainersFuture.completeExceptionally(new Throwable("Aborted due to timeout"));
+		}
+		
+		return destroy(composeFilePath, timeOutInSeconds);
+	}
+
+	public CompletableFuture<List<String>> destroy(String composeFilePath, int timeOutInSeconds) throws Exception {
 
 		Executor executor = Executors.newFixedThreadPool(2);
-		CompletableFuture<String> destroyContainersFuture = CompletableFuture.supplyAsync(() -> {
+		CompletableFuture<List<String>> destroyContainersFuture = CompletableFuture.supplyAsync(() -> {
 
-			String result = "";
+			List<String> result = new ArrayList<>();
 			
 			try {
 				
@@ -124,22 +127,16 @@ public class ContainerEnvironment {
 				builder.redirectError(ProcessBuilder.Redirect.INHERIT);
 
 				Process dockerComposeCommand = builder.start();
-				System.out.println("B4 wait..");
 				dockerComposeCommand.waitFor(timeOutInSeconds, TimeUnit.SECONDS);
-				System.out.println("Aftr wait..");
 				try (BufferedReader reader = new BufferedReader(
 						new InputStreamReader(dockerComposeCommand.getInputStream()))) {
 
+					String line = "";
 					do {
-
-						int c = reader.read();
-						if (c > -1)
-							result = result + (char) c;
-						else
-							break;
-					} while (reader.ready());
-					result = result + "DockerComposeDownCompleted";
-					System.out.println("after result:" + result);
+						
+						line = reader.readLine();
+						result.add(line);
+					}while(reader.ready());
 				}
 			} catch (Exception e) {
 				LOGGER.error("ProcessBuilder Error:", e.getMessage());
@@ -157,10 +154,9 @@ public class ContainerEnvironment {
 
 		try {
 
-			CompletableFuture<String> cef = ce.destroy("C:/Workspace/STS/kafkademo/src/test/resources/docker-compose.yml",
-					30);
-			String result = cef.get();
-			System.out.println("--IN MAIN--");
+			CompletableFuture<List<String>> cef = ce.destroy("C:/Workspace/STS/kafkademo/src/test/resources/docker-compose.yml",
+					0);
+			String result = cef.get().toString();
 			System.out.println(result);
 		} catch (Exception e) {
 
